@@ -10,8 +10,12 @@ pydantic-settings = "*"
 structlog = "*"
 celery = "*"
 celery-types = "*"
+anthropic = "*"
 
 [dev-packages]
+pytest = "*"
+pytest-cov = "*"
+pytest-asyncio = "*"
 
 [requires]
 python_version = "3.13"
