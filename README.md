@@ -102,7 +102,84 @@ pipenv run ruff check .
 pipenv run mypy .
 ```
 
-## API
+## Usage
+
+### CLI (recommended)
+
+The easiest way to generate tests is via the included `cli.py` script — no JSON escaping needed.
+
+**1. Write your source file**
+
+```python
+# math.py
+def divide(a: float, b: float) -> float:
+    if b == 0:
+        raise ValueError("Cannot divide by zero")
+    return a / b
+```
+
+**2. Run the CLI**
+
+```bash
+pipenv run python cli.py math.py
+```
+
+The agent will:
+1. Parse `math.py` with the AST analyzer — extracting functions, complexity, raise/return paths
+2. Build a structured prompt with coverage gaps (e.g. "test the zero-division branch")
+3. Send the prompt to Claude, which may call `get_function_source` to inspect implementation details
+4. Extract the generated tests from the `<tests>...</tests>` response block
+5. Run `pytest --cov` in a sandbox to verify the tests pass and measure coverage
+6. If coverage is below the target (default 80%), retry with the coverage gap as feedback — up to 3 times
+7. Return the final test code
+
+**3. Output**
+
+```
+Submitting math.py...
+Job ID: 9ad025df-2f95-46f0-b342-d6aac17cb31d
+  [2s] status: running
+  [4s] status: success
+Done! Coverage: 100%
+
+============================================================
+import pytest
+from math import divide
+
+
+def test_divide_returns_correct_result():
+    assert divide(10.0, 2.0) == pytest.approx(5.0)
+
+
+def test_divide_by_zero_raises_value_error():
+    with pytest.raises(ValueError, match="Cannot divide by zero"):
+        divide(1.0, 0.0)
+
+
+@pytest.mark.parametrize("a,b,expected", [
+    (6.0, 3.0, 2.0),
+    (-4.0, 2.0, -2.0),
+    (0.0, 5.0, 0.0),
+])
+def test_divide_parametrized(a, b, expected):
+    assert divide(a, b) == pytest.approx(expected)
+```
+
+**Save to a file instead of stdout:**
+
+```bash
+pipenv run python cli.py math.py --out test_math.py
+```
+
+**Custom coverage target:**
+
+```bash
+pipenv run python cli.py math.py --coverage 0.95
+```
+
+---
+
+### API
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -110,21 +187,33 @@ pipenv run mypy .
 | `POST` | `/generate` | Submit code for test generation |
 | `GET` | `/jobs/{job_id}` | Poll job status and results |
 
-### Example
+#### POST /generate
 
-```bash
-curl -X POST http://localhost:8000/generate \
-  -H "Content-Type: application/json" \
-  -d '{"code": "def add(a: int, b: int) -> int:\n    return a + b", "filename": "math_utils.py"}'
-```
-
-Response:
 ```json
-{"job_id": "abc-123", "status": "pending"}
+{
+  "code": "<Python source as a string>",
+  "filename": "math.py",
+  "target_coverage": 0.8
+}
 ```
 
-```bash
-curl http://localhost:8000/jobs/abc-123
+Returns immediately with a job ID:
+
+```json
+{"job_id": "9ad025df-2f95-46f0-b342-d6aac17cb31d", "status": "pending"}
+```
+
+#### GET /jobs/{job_id}
+
+Poll until `status` is `"success"` or `"failed"`:
+
+```json
+{
+  "job_id": "9ad025df-2f95-46f0-b342-d6aac17cb31d",
+  "status": "success",
+  "generated_tests": "import pytest\n...",
+  "coverage": 1.0
+}
 ```
 
 ## Project Structure
@@ -145,7 +234,7 @@ curl http://localhost:8000/jobs/abc-123
 | Variable | Default | Description |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Required. Your Anthropic API key |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-5` | Model to use |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Model to use |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
 | `CELERY_BROKER_URL` | `redis://localhost:6379/1` | Celery broker |
 | `CELERY_RESULT_BACKEND` | `redis://localhost:6379/2` | Celery results |

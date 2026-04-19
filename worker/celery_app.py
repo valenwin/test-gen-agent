@@ -7,7 +7,7 @@ celery_app = Celery(
     "test_gen_agent",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["test_gen_agent.worker.tasks"],
+    include=["worker.tasks"],
 )
 
 celery_app.conf.update(

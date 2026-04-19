@@ -11,6 +11,8 @@ structlog = "*"
 celery = "*"
 celery-types = "*"
 anthropic = "*"
+redis = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
