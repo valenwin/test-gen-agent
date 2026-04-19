@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # Anthropic
     anthropic_api_key: str = Field(default="")
-    anthropic_model: str = Field(default="claude-sonnet-4-5")
+    anthropic_model: str = Field(default="claude-sonnet-4-6")
     anthropic_max_tokens: int = Field(default=4096)
 
     # Generation

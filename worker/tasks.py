@@ -56,7 +56,8 @@ def generate_tests_task(
         validation = validator.validate(code, gen_result.tests, filename)
         last_validation = validation
 
-        if validation.success:
+        meets_coverage = validation.coverage >= target_coverage
+        if validation.success and meets_coverage:
             log.info(
                 "generation_completed",
                 attempt=attempt,
@@ -73,13 +74,25 @@ def generate_tests_task(
                 "output_tokens": gen_result.output_tokens,
             }
 
-        log.warning(
-            "validation_failed",
-            attempt=attempt,
-            coverage=validation.coverage,
-            error=(validation.error or "")[:500],
-        )
-        previous_error = validation.error
+        if validation.success and not meets_coverage:
+            log.warning(
+                "coverage_below_target",
+                attempt=attempt,
+                coverage=validation.coverage,
+                target=target_coverage,
+            )
+            previous_error = (
+                f"Tests pass but coverage is {validation.coverage:.0%}, "
+                f"target is {target_coverage:.0%}. Add more tests to reach the target."
+            )
+        else:
+            log.warning(
+                "validation_failed",
+                attempt=attempt,
+                coverage=validation.coverage,
+                error=(validation.error or "")[:500],
+            )
+            previous_error = validation.error
 
     # All retries exhausted — return last generated tests regardless
     log.warning(
